@@ -1,0 +1,231 @@
+---
+title: "Respuestas Tarea 1"
+output: html_notebook
+---
+
+# Tarea 1
+
+Taller de Análisis de Datos 1 Enzo Loiza
+
+```{r}
+gc()
+rm(list=ls())
+
+# use libraries
+library(tidyverse)
+library(readxl)
+```
+
+## Ejercicio 1
+
+a\. Generamos en el `environment` los siguientes vectores que se piden:
+
+```{r}
+vector_1 <- seq(1, 5, .5)
+vector_2 <- seq(1, 20, 2)
+vector_3 <- replicate(10, 2023)
+vector_4 <- as.numeric(cbind(replicate(5,1),replicate(5,0)))
+vector_5 <- vector_1 + vector_2
+```
+
+Los mostramos a continuación:
+
+```{r}
+vector_1
+vector_2
+vector_3
+vector_4
+vector_5
+```
+
+Los vectores `vector_1` y `vector_2` tienen distinta longitud (9 y 10 respectivamente). Por lo tanto, la coerción para la suma de ambos vectores corresponde a que se suman los últimos valores del `vector_2` (el vector más largo) con los primeros del `vector_1` (el vector más corto), y el vector final quedará con la longitud del más largo. En este caso específico, el `vector_5` tendrá longitud 10.
+
+Explicamos la diferencia entre los vectores, matrices y dataframes: - `Vector`: es una colección de datos que pueden ser sólo de un mismo tipo. Su única dimensión es el largo. Los números son en sí vectores de largo 1. Ejemplos: <br>`v <- 1`<br>`a <- c(1,2)`<br>`b <- seq(1,10)`
+
+-   `Matrix`: las matrices son colecciones de vectores, estructuras de dos dimensiones que contienen vectores, todos del mismo largo. Además del largo, tienen ancho, pues se ordenan de manera matricial con las mismas características de las matrices algebraicas. Ejemplos: <br> `B <- matrix(1:9)`<br>`A <- matrix(1:12, nrow = 5, ncol = 4)`
+-   `DataFrame`: las dataframes son estructuras de dos dimensiones donde cada vector puede contener un tipo distinto de dato. Son versiones más flexibles de las matrices.
+
+b.  Generamos la matriz que se nos solicita, usando los vectores de la parte a, y la mostramos:
+
+```{r}
+M <- cbind(vector_1,
+          vector_2,
+          vector_3,
+          vector_4,
+          vector_5)
+M
+```
+
+El `vector_1` tiene un largo menor a los demás vectores, por lo tanto, la coerción que se aplica a este vector corresponde a: 1. establecer el largo de la matriz como el largo mayor de los vectores, y 2. reciclar los valores de los vectores con largo menor. Esto nos importa para entender qué pasa al trabajar con los datos.
+
+La diferencia está en el tipo de datos que queremos manejar. Si necesitamos trabajar únicamente con datos numéricos, como al hacer una regresión lineal, una matriz es suficiente. Sin embargo, si queremos ver diferencias entre variables tratando los datos y creando variables binarias, necesitaremos trabajar con dataframes.
+
+c\. Primero extraemos la base de datos para trabajarla
+
+```{r}
+simce <- read.csv("simce2m2016_extracto.csv", sep = ',', dec = '.')
+names(simce)
+```
+
+Los datos de simce que nos interesan para hacer la evaluación son `ptje_lect2m_alu` (puntaje lenguage) y `ptje_mate2m_alu` (puntaje matemáticas), por lo que usaremos estas variables para hacer la regresión.
+
+```{r}
+regresion <- lm(ptje_mate2m_alu ~ ptje_lect2m_alu,
+                data = simce,
+                na.rm = TRUE)
+regresion
+```
+
+Podemos ver que una regresión lineal simple nos idica que por cada punto de matemáticas, aumenta 0.7581 puntos en la prueba de lenguaje en promedio. La afirmación del enunciado es falsa, pues el $\beta$ de la regresión es positivo. Podemos hacer doble click en la regresión pidiendo un resumen de ésta:
+
+```{r}
+summary(regresion)
+```
+
+Con lo que obtenemos errores bastante grandes, aunque la tendencia existe. Podemos verificar esto a través de un gráfico,
+
+```{r}
+ggplot(simce,
+       aes(ptje_lect2m_alu,
+           ptje_mate2m_alu)) +
+  geom_point(size = .3,
+             color = 'darkgrey')+
+  geom_smooth(method='lm', color='turquoise4') +
+  labs(x='Puntaje Matemáticas',
+       y='Puntaje Lenguaje',
+       title='Puntajes SIMCE')
+```
+
+## Pregunta 2
+
+Primero abrimos la librería:
+
+```{r}
+library(WDI)
+```
+
+a\. Elegimos un indicador mediante una búsqueda a través del comando `WDIsearch()`. El indicador elegido corresponde a la esperanza de vida al nacer. Este valor tiene mucha importancia tanto en salud como en seguridad social (al establecer, por ejemplo, políticas de pensión).
+
+```{r}
+WDIsearch("life expectancy at birth.*total")
+```
+
+El indicador se llama `SP.DYN.LE00.IN`, pero en nuestra base de datos (`DB`) la llamaremos `leab`.
+
+```{r}
+DB <- WDI(country = 'all',
+          indicator = c("leab"="SP.DYN.LE00.IN"),
+          start = 2015,
+          end = 2020,
+          extra = TRUE,
+          cache = NULL,
+          latest = NULL,
+          language = 'en') %>%
+  filter(region == 'Latin America & Caribbean')
+```
+
+Vemos un pequeño resumen de la base obtenida:
+
+```{r}
+summary(DB)
+```
+
+Que nos indica que tenemos 252 observaciones. Luego,
+
+```{r}
+DB %>% count(year) # numero de años 6
+DB %>% count(country) %>% summary() # numero de paises 42
+```
+
+Vemos que la data contiene 6 años desde 2015 hasta 2020, y 42 países.
+
+b\. Hacemos la tabla resumen de los valores de esperanza de vida por año.
+
+```{r}
+tabla <- DB %>%
+  group_by(year) %>%
+  summarise(na.rm = TRUE,
+    N = sum(!is.na(leab)),
+    mean = mean(leab, na.rm = TRUE),
+    sd = sd(leab, na.rm = TRUE),
+    min = min(leab, na.rm = TRUE),
+    median = median(leab, na.rm = TRUE),
+    max = max(leab, na.rm = TRUE)
+  ) %>%
+  left_join(DB %>% distinct(year, region), by = "year")
+
+tabla[,c('region', 'year', 'N', 'mean', 'sd', 'min','median', 'max')]
+```
+
+La esperanza de vida se mantuvo más o menos constante hasta 2019. Sin embargo, en 2020, el indicador presentó una pequeña variación negativa. La desviación estándar, por otro lado, fue disminuyendo decimalmente los primeros 5 años, pero aumentó levemente en 2020. Estos resultados pueden deberse a la crisis sanitaria mundial producto del coronavirus.
+
+c\. Veremos si tenemos missing values. Simplemente de la tabla anterior, sabemos que existen, ahora vamos a encontrarlos:
+
+```{r}
+DB %>%
+  filter(is.na(leab)) %>%
+  select(country, year)
+```
+
+Es decir, existen missing values para las Islas Cayman (en los 6 años de análisis) y Curacao (desde 2018).
+
+Podemos establecer varias estrategias pero dos son interesantes:
+
+-   Para los dos casos con missing data, podemos asumir suavidad entre países vecinos. Es decir, por ejemplo, la esperanza de vida de Paraguay, no es muy diferente a la de sus vecinos (Argentina, Bolivia, Brasil). Por lo que para cada año, podemos hacer una polarización ponderada desde los vecinos, usando los valores que sí existen en la data.
+
+-   Una segunda opción válida para Curacao, es utilizar los valores que sí existen (2015 y 2016) y extrapolarlos a partir de la información que tenemos de las tendencias de esperanza de vida en Latinoamérica y Caribe.
+
+-   Probablemente la mejor opción que tenemos es una mezcla de ambas estrategias.
+
+d\. A nuestra base ahora le haremos un filtro para chile:
+
+```{r}
+chile <- DB %>% filter(country =="Chile")
+```
+
+Resumimos igual que en el punto b., es decir haciendo una tabla. Esta vez incluiremos también un gráfico para mostrar de mejor forma.
+
+```{r}
+summary(chile$leab)
+```
+
+```{r}
+ggplot(data = chile, aes(year, leab)) +
+  geom_line(colour = 'red') +
+  xlab('year') +
+  ylab('Life Expectancy at birth') +
+  ggtitle('Life Expectacy per year in Chile')
+```
+
+La esperanza de vida al nacer muestra una tendencia positiva en los años 2015-2019, sin embargo, tiene una caída brusca en 2020, posiblemente (al igual que los otros países de la región) debido a la crisis sanitaria.
+
+e\. Puedo resumir mis análisis en los siguientes puntos:
+
+-   En toda la región se muestra un aumento sostenido de la espezanza de vida al nacer desde 2015 al 2019.
+
+-   El aumento sostenido se ve paralizado en 2020 debido a la pandemia que azotó tanto a la región como al mundo entero.
+
+-   Este aumento es posible que se recupere si se toman medidas de política pública en salud pues responde a mejoras en el servicio médico.
+
+-   Por otro lado, el aumento también tiene consecuencias a largo plazo en relación con las políticas de seguridad social en la vejez. Una mala gestión de recursos puede favorecer un colapso del sistema de pensiones que deje a una gran parte de la población de tercera edad de un país sin recursos para sus manutenciones.
+
+## Bonus
+
+Primero instalamos la librería necesaria
+
+```{r}
+library(sf)
+```
+
+Luego, cargamos el mapa de Latinoamérica:
+
+```{r}
+latam_shape <- ne_countries(scale = "medium",
+                            type = "map_units",
+                            country = "countries",
+                            continent = c("South America",
+                                          "North America"))
+
+```
+
+No creo que alcance a hacerla :(
